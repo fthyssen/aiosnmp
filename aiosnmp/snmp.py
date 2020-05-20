@@ -50,8 +50,8 @@ class Snmp(SnmpConnection):
     async def _send(self, message: SnmpMessage) -> List[SnmpVarbind]:
         if self._protocol is None:
             await self._connect()
-        assert self._protocol
-        return await self._protocol._send(message, self.host, self.port)
+        assert self._protocol, self._peername
+        return await self._protocol._send(message, *self._peername)
 
     async def get(self, oids: Union[str, List[str]]) -> List[SnmpVarbind]:
         if isinstance(oids, str):
