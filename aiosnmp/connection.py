@@ -49,7 +49,9 @@ class SnmpConnection:
 
         self._protocol = cast(SnmpProtocol, protocol)
         self._transport = cast(asyncio.DatagramTransport, transport)
-        self._peername = self._transport.get_extra_info("peername")
+        self._peername = self._transport.get_extra_info(
+            "peername", default=(self.host, self.port)
+        )
 
     def close(self) -> None:
         if self._transport is not None and not self._transport.is_closing():
