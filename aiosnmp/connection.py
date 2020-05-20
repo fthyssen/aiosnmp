@@ -1,9 +1,9 @@
 __all__ = "SnmpConnection"
 
 import asyncio
-from typing import Optional, Tuple, cast
+from typing import Optional, cast
 
-from .protocols import SnmpProtocol
+from .protocols import Address, SnmpProtocol
 
 DEFAULT_TIMEOUT = 1
 DEFAULT_RETRIES = 6
@@ -34,7 +34,7 @@ class SnmpConnection:
         self.loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         self._protocol: Optional[SnmpProtocol] = None
         self._transport: Optional[asyncio.DatagramTransport] = None
-        self._peername: Optional[Tuple[str, int]] = None
+        self._peername: Optional[Address] = None
         self.timeout: float = timeout
         self.retries: int = retries
 
