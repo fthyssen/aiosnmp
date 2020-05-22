@@ -45,7 +45,8 @@ _ERROR_STATUS_TO_EXCEPTION = {
     18: SnmpErrorInconsistentName,
 }
 
-Address = Union[Tuple[str, int], Tuple[str, int, int, int]]
+Address = Union[Tuple[str, int], Tuple[str, int, int, int], str, bytes, bytearray]
+SocketKey = Union[Tuple[str, int], str, bytes, bytearray]
 
 
 class SnmpTrapProtocol(asyncio.DatagramProtocol):
@@ -60,8 +61,6 @@ class SnmpTrapProtocol(asyncio.DatagramProtocol):
         self.transport = cast(asyncio.DatagramTransport, transport)
 
     def datagram_received(self, data: Union[bytes, Text], addr: Address) -> None:
-        host, port = addr[:2]
-
         if isinstance(data, Text):
             return
 
@@ -70,6 +69,10 @@ class SnmpTrapProtocol(asyncio.DatagramProtocol):
             self.communities and message.community not in self.communities
         ):
             return
+
+        host, port = addr[:2] if isinstance(addr, tuple) else (addr, -1)
+        if isinstance(host, (bytes, bytearray)):
+            host = host.decode()
         asyncio.ensure_future(self.handler(host, port, message))
 
 
@@ -78,7 +81,7 @@ class SnmpProtocol(asyncio.DatagramProtocol):
 
     def __init__(self, timeout: float, retries: int) -> None:
         self.loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-        self.requests: Dict[Tuple[str, int, int], asyncio.Future] = {}
+        self.requests: Dict[Tuple[SocketKey, int], asyncio.Future] = {}
         self.timeout: float = timeout
         self.retries: int = retries
 
@@ -86,12 +89,12 @@ class SnmpProtocol(asyncio.DatagramProtocol):
         self.transport = cast(asyncio.DatagramTransport, transport)
 
     def datagram_received(self, data: Union[bytes, Text], addr: Address) -> None:
-        host, port = addr[:2]
+        socket_key: SocketKey = addr[:2] if isinstance(addr, tuple) else addr
         if isinstance(data, Text):
             raise RuntimeError("data should be bytes.")
         message = SnmpResponse.decode(data)
 
-        key = (host, port, message.data.request_id)
+        key = (socket_key, message.data.request_id)
         if key in self.requests:
             exception: Optional[Exception] = None
             if isinstance(message.data, PDU) and message.data.error_status != 0:
@@ -108,9 +111,9 @@ class SnmpProtocol(asyncio.DatagramProtocol):
                 del self.requests[key]
 
     async def _send(
-        self, message: SnmpMessage, host: str, port: int
+        self, message: SnmpMessage, socket_key: SocketKey
     ) -> List[SnmpVarbind]:
-        key = (host, port, message.data.request_id)
+        key = (socket_key, message.data.request_id)
         fut: asyncio.Future = self.loop.create_future()
         fut.add_done_callback(
             lambda fn: self.requests.pop(key) if key in self.requests else None
